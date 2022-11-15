@@ -1,0 +1,54 @@
+version: "2"
+
+services:
+  zookeeper:
+    image: bitnami/zookeeper:3.8.0-debian-11-r28
+    container_name: "zookeeper"
+    network_mode: kafka
+    ports:
+      - "2181:2181"
+    volumes:
+      - "${ZOOKEEPER_DATA}:/bitnami"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+  kafka:
+    image: docker.io/bitnami/kafka:3.1.1
+    container_name: "kafka-01"
+    hostname: "kafka-01"
+    network_mode: kafka
+    ports:
+      - "9092:9092"
+    volumes:
+      - "${KAFKA_DATA}:/bitnami"
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:9092
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    depends_on:
+      - zookeeper
+  kafka-2:
+    image: docker.io/bitnami/kafka:3.1.1
+    container_name: "kafka-02"
+    hostname: "kafka-02"
+    network_mode: kafka
+    ports:
+      - "9093:9092"
+    volumes:
+      - "${KAFKA_2_DATA}:/bitnami"
+    environment:
+      - KAFKA_BROKER_ID=2
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:9093
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    depends_on:
+      - zookeeper
+      - kafka
+
+volumes:
+  zookeeper_data:
+    driver: local
+  kafka_data:
+    driver: local
