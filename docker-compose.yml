@@ -2,53 +2,60 @@ version: "2"
 
 services:
   zookeeper:
-    image: bitnami/zookeeper:3.8.0-debian-11-r28
-    container_name: "zookeeper"
-    network_mode: kafka
+    image: wurstmeister/zookeeper:latest
+    container_name: zookeeper
     ports:
       - "2181:2181"
     volumes:
-      - "${ZOOKEEPER_DATA}:/bitnami"
+      - "${ZOOKEEPER_DATA}:/opt/zookeeper-3.4.13/data"
     environment:
       - ALLOW_ANONYMOUS_LOGIN=yes
   kafka:
-    image: docker.io/bitnami/kafka:3.1.1
+    image: wurstmeister/kafka:2.13-2.7.2
     container_name: "kafka-01"
-    hostname: "kafka-01"
-    network_mode: kafka
+    hostname: kafka-01
     ports:
-      - "9092:9092"
+      - "29092:29092"
     volumes:
-      - "${KAFKA_DATA}:/bitnami"
+      - "${KAFKA_DATA}:/kafka"
     environment:
       - KAFKA_BROKER_ID=1
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:9092
-      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_LISTENERS=INSIDE://:9092,OUTSIDE://:29092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
+      - KAFKA_ADVERTISED_LISTENERS=INSIDE://kafka-01:9092,OUTSIDE://localhost:29092
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_INTER_BROKER_LISTENER_NAME=INSIDE
       - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CREATE_TOPICS=miwayz.demand.trips:1:1:compact,miwayz.demand.trip.jobs:1:1:compact
     depends_on:
       - zookeeper
-  kafka-2:
-    image: docker.io/bitnami/kafka:3.1.1
-    container_name: "kafka-02"
-    hostname: "kafka-02"
-    network_mode: kafka
-    ports:
-      - "9093:9092"
-    volumes:
-      - "${KAFKA_2_DATA}:/bitnami"
-    environment:
-      - KAFKA_BROKER_ID=2
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9093
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:9093
-      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
-      - ALLOW_PLAINTEXT_LISTENER=yes
+
+  schemaregistry:
+    image: confluentinc/cp-schema-registry:5.1.2
+    container_name: zg_core_schema_registry
+    restart: always
     depends_on:
       - zookeeper
       - kafka
+    environment:
+      - SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS=PLAINTEXT://kafka-01:9092
+      - SCHEMA_REGISTRY_HOST_NAME=schemaregistry
+      - SCHEMA_REGISTRY_LISTENERS=http://0.0.0.0:8081
+    ports:
+      - 8081:8081
 
-volumes:
-  zookeeper_data:
-    driver: local
-  kafka_data:
-    driver: local
+  kowl:
+    image: docker.redpanda.com/vectorized/console:latest
+    container_name: "kowl"
+    hostname: kowl
+    ports:
+      - "8080:8080"
+    environment:
+      - KAFKA_BROKERS=kafka:9092
+      - KAFKA_SCHEMAREGISTRY_ENABLED=true
+      - KAFKA_SCHEMAREGISTRY_URLS=http://schemaregistry:8081
+    depends_on:
+      - zookeeper
+      - kafka
+      - schemaregistry
+
